@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    container_name: museboard_web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./museboard_src:/var/www/html
+    environment:
+      UNSPLASH_ACCESS_KEY: "${UNSPLASH_ACCESS_KEY:-}"
+      # Container-to-container URL — "ml" is the service name below, which
+      # Docker Compose resolves on its internal network automatically.
+      ML_API_URL: "http://ml:5000/predict"
+    depends_on:
+      - db
+      - ml
+
+  db:
+    image: mysql:8.0
+    container_name: museboard_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: museboard
+    volumes:
+      - ./museboard_src/config/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - museboard_db_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: museboard_phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+    depends_on:
+      - db
+
+  ml:
+    build: ./ml
+    container_name: museboard_ml
+    volumes:
+      - ./ml:/app
+      # Only needed to retrain the model - uncomment and point at your own .kaggle folder:
+      # - ~/.kaggle:/root/.kaggle:ro
+    ports:
+      - "5001:5000"   # host:container — lets you test with curl from Windows too
+    tty: true
+    stdin_open: true
+
+volumes:
+  museboard_db_data:
